@@ -15,4 +15,4 @@ COPY . .
 EXPOSE 3000
 
 # Set the default terminal command that executes automatically whenever the container spins up
-CMD ['npm', 'start']
+CMD ["npm", "start"]

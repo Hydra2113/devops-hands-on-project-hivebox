@@ -6,4 +6,6 @@ const version = 'v0.0.1';
 
 app.use(express.json())
 
-console.log(version);
+while (true) {
+    console.log(version);
+}
