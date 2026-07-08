@@ -4,8 +4,9 @@
   "description": "[![Dynamic DevOps Roadmap](https://img.shields.io/badge/Dynamic_DevOps_Roadmap-559e11?style=for-the-badge&logo=Vercel&logoColor=white)](https://devopsroadmap.io/getting-started/)\r [![Community](https://img.shields.io/badge/Join_Community-%23FF6719?style=for-the-badge&logo=substack&logoColor=white)](https://newsletter.devopsroadmap.io/subscribe)\r [![Telegram Group](https://img.shields.io/badge/Telegram_Group-%232ca5e0?style=for-the-badge&logo=telegram&logoColor=white)](https://t.me/DevOpsHive/985)\r [![Fork on GitHub](https://img.shields.io/badge/Fork_On_GitHub-%2336465D?style=for-the-badge&logo=github&logoColor=white)](https://github.com/DevOpsHiveHQ/devops-hands-on-project-hivebox/fork)",
   "main": "OpenSenseAPI.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
-    "start": "node OpenSenseAPI.js"
+    "test": "node --test",
+    "start": "node OpenSenseAPI.js",
+    "lint": "eslint ."
   },
   "repository": {
     "type": "git",
@@ -19,5 +20,9 @@
   "homepage": "https://github.com/Hydra2113/devops-hands-on-project-hivebox#readme",
   "dependencies": {
     "express": "^5.2.1"
+  },
+  "type": "module",
+  "devDependencies": {
+    "eslint": "^9.39.4"
   }
 }
