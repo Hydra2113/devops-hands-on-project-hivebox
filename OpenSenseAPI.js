@@ -1,4 +1,5 @@
 import express from 'express';
+import { fileURLToPath } from 'node:url';
 import { averageRecentTemperature } from './temperature.js';
 
 const app = express();
@@ -18,8 +19,6 @@ async function getAverageTemperature() {
 }
 
 
-app.use(express.json());
-
 app.get('/version', (req, res) => {
     res.json({ version });
 });
@@ -35,7 +34,13 @@ app.get('/temperature', async (req, res) => {
     }
 });
 
-app.listen(PORT, () => {
-    console.log(`server is successfully running on http://localhost:${PORT}`);
-});
+// Only start the server when run directly (`node OpenSenseAPI.js`), not when
+// imported by a test — the test boots its own instance on a random port.
+if (process.argv[1] === fileURLToPath(import.meta.url)) {
+    app.listen(PORT, () => {
+        console.log(`server is successfully running on http://localhost:${PORT}`);
+    });
+}
+
+export default app;
 
