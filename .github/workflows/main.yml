@@ -1,0 +1,36 @@
+name: main-worflow
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: clone repo
+        uses: actions/checkout@v4
+
+      - name: create runtime environment
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: clean install
+        run: npm ci
+
+      - name: lint javascript
+        run: npm run lint
+
+      - name: lint Dockerfile
+        uses: hadolint/hadolint-action@v3.1.0
+        with:
+          dockerfile: Dockerfile
+
+      - name: run unit tests
+        run: npm test
+      
+
+        
