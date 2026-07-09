@@ -1,8 +1,10 @@
 import express from 'express';
 import { fileURLToPath } from 'node:url';
+import client from 'prom-client';
 import { averageRecentTemperature } from './temperature.js';
 
 const app = express();
+client.collectDefaultMetrics(); // CPU, memory, event-loop lag, etc.
 const PORT = 3000;
 const version = 'v0.0.1';
 
@@ -32,6 +34,11 @@ app.get('/temperature', async (req, res) => {
     } catch {
         res.status(502).json({ error: 'upstream unreachable' });
     }
+});
+
+app.get('/metrics', async (req, res) => {
+    res.set('Content-Type', client.register.contentType);
+    res.send(await client.register.metrics());
 });
 
 // Only start the server when run directly (`node OpenSenseAPI.js`), not when
