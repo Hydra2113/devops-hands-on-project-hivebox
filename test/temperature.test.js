@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { averageRecentTemperature } from '../temperature.js';
+import { averageRecentTemperature, temperatureStatus } from '../temperature.js';
 
 const now = Date.now();
 const fresh = new Date(now - 10 * 60 * 1000).toISOString();       // 10 min ago
@@ -30,4 +30,14 @@ test('ignores non-temperature sensors', () => {
 
 test('tolerates boxes with no sensors', () => {
     assert.equal(averageRecentTemperature([{}], now), null);
+});
+
+test('temperatureStatus maps averages to bands, boundaries included', () => {
+    assert.equal(temperatureStatus(-5), 'Too Cold');
+    assert.equal(temperatureStatus(9.9), 'Too Cold');
+    assert.equal(temperatureStatus(10), 'Good');     // band edge: cold ends below 10
+    assert.equal(temperatureStatus(25), 'Good');
+    assert.equal(temperatureStatus(36), 'Good');     // band edge: good ends at 36
+    assert.equal(temperatureStatus(36.1), 'Too Hot');
+    assert.equal(temperatureStatus(40), 'Too Hot');
 });

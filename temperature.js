@@ -14,3 +14,12 @@ export function averageRecentTemperature(boxes, now = Date.now()) {
     if (temps.length === 0) return null;
     return temps.reduce((a, b) => a + b, 0) / temps.length;
 }
+
+// Spec: <10 Too Cold, 11-36 Good, >37 Too Hot. The spec leaves 10-11 and
+// 36-37 undefined; averages are floats, so the bands are closed here
+// (<10 cold, <=36 good, else hot) to leave no gaps.
+export function temperatureStatus(avg) {
+    if (avg < 10) return 'Too Cold';
+    if (avg <= 36) return 'Good';
+    return 'Too Hot';
+}
