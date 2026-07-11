@@ -12,6 +12,9 @@ spec:
       labels:
         app: hivebox
     spec:
+      # HiveBox never calls the Kubernetes API, so don't mount a token a
+      # compromised pod could use against the cluster.
+      automountServiceAccountToken: false
       containers:
         - name: hivebox
           image: hivebox:latest
