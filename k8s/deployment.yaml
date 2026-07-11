@@ -27,3 +27,12 @@ spec:
             httpGet:
               path: /version
               port: 3000
+          # requests = what the scheduler reserves; limits = the hard ceiling.
+          # Small values for a lightweight Node app; tune from real usage.
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+              ephemeral-storage: 128Mi
+            limits:
+              memory: 128Mi
