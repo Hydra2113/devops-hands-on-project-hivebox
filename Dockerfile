@@ -14,5 +14,9 @@ COPY . .
 # Document the port which your application listens to at runtime
 EXPOSE 3000
 
-# Set the default terminal command that executes automatically whenever the container spins up
-CMD ["npm", "start"]
+# Drop root: the node image ships a non-privileged `node` user (uid 1000).
+USER node
+
+# Run node directly (not `npm start`): forwards signals properly and writes
+# nothing to disk, so the container works with a read-only root filesystem.
+CMD ["node", "OpenSenseAPI.js"]
