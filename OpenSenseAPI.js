@@ -1,7 +1,7 @@
 import express from 'express';
 import { fileURLToPath } from 'node:url';
 import client from 'prom-client';
-import { averageRecentTemperature } from './temperature.js';
+import { averageRecentTemperature, temperatureStatus } from './temperature.js';
 
 const app = express();
 client.collectDefaultMetrics(); // CPU, memory, event-loop lag, etc.
@@ -30,7 +30,7 @@ app.get('/temperature', async (req, res) => {
     try {
         const average = await getAverageTemperature();
         if (average === null) return res.status(404).json({ error: 'no recent temperature data' });
-        res.json({ temperature: average, unit: 'C' });
+        res.json({ temperature: average, unit: 'C', status: temperatureStatus(average) });
     } catch {
         res.status(502).json({ error: 'upstream unreachable' });
     }
