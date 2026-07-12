@@ -2,6 +2,9 @@ apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   name: hivebox
+  # No TLS: this ingress serves http://localhost on a local KIND cluster,
+  # there is no certificate to terminate. Add a TLS block for real deploys.
+  # (AC_K8S_0002 skipped in CI via skip_rules.)
 spec:
   ingressClassName: nginx
   rules:

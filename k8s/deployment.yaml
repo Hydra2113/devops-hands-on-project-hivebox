@@ -11,11 +11,20 @@ spec:
     metadata:
       labels:
         app: hivebox
+      annotations:
+        container.apparmor.security.beta.kubernetes.io/hivebox: runtime/default
+        seccomp.security.alpha.kubernetes.io/pod: runtime/default
     spec:
       # HiveBox never calls the Kubernetes API, so don't mount a token a
       # compromised pod could use against the cluster.
       automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
       containers:
+        # Image is side-loaded locally via `kind load`, so it has no registry
+        # digest and a fixed :latest tag by design (see skip_rules in CI).
         - name: hivebox
           image: hivebox:latest
           # Never pull: the image is side-loaded with `kind load docker-image`,
@@ -23,7 +32,20 @@ spec:
           imagePullPolicy: Never
           ports:
             - containerPort: 3000
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            seccompProfile:
+              type: RuntimeDefault
+            capabilities:
+              drop: ["ALL"]
           readinessProbe:
+            httpGet:
+              path: /version
+              port: 3000
+          livenessProbe:
             httpGet:
               path: /version
               port: 3000
@@ -35,4 +57,5 @@ spec:
               memory: 64Mi
               ephemeral-storage: 128Mi
             limits:
+              cpu: 250m
               memory: 128Mi
