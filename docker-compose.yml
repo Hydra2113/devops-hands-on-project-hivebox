@@ -1,0 +1,21 @@
+services:
+  # Cache — contents are disposable by design, so no volume.
+  valkey:
+    image: valkey/valkey:8-alpine
+    ports:
+      - "6379:6379"
+
+  # Object store — snapshots must survive restarts, so data gets a volume.
+  # Console UI at http://localhost:9001 (default creds minioadmin/minioadmin,
+  # local dev only).
+  minio:
+    image: minio/minio
+    command: server /data --console-address ":9001"
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - minio-data:/data
+
+volumes:
+  minio-data:
