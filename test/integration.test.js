@@ -62,3 +62,17 @@ test('GET /metrics serves Prometheus metrics', async () => {
     assert.match(res.headers.get('content-type'), /text\/plain/);
     assert.match(await res.text(), /process_cpu_user_seconds_total/);
 });
+
+// Runs last: the /temperature tests above have already exercised every
+// outcome, so the custom metrics must now be populated.
+test('custom metrics record the outcomes of earlier requests', async () => {
+    const body = await (await fetch(`${base}/metrics`)).text();
+
+    assert.match(body, /hivebox_temperature_requests_total\{outcome="ok"\} 1/);
+    assert.match(body, /hivebox_temperature_requests_total\{outcome="no_fresh_data"\} 1/);
+    assert.match(body, /hivebox_temperature_requests_total\{outcome="upstream_error"\} 2/);
+    assert.match(body, /hivebox_fresh_readings 0/);          // last fetch was the stale-data test
+    assert.match(body, /hivebox_temperature_celsius 20/);    // set by the ok test
+    assert.match(body, /hivebox_opensensemap_request_duration_seconds_count/);
+    assert.match(body, /hivebox_http_request_duration_seconds_count\{route="\/temperature"/);
+});
