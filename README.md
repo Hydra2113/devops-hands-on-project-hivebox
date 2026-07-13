@@ -77,9 +77,9 @@ flowchart TB
     end
 
     U[Browser / curl] -->|http://localhost| ING
-    P1 & P2 -->|fetch sensor data| OSM[("openSenseMap API")]
-    P1 & P2 <-->|"cache (TTL 5m)"| VK
-    P1 & P2 -->|"snapshot every 5m + /store"| MIO
+    cluster -->|fetch sensor data| OSM[("openSenseMap API")]
+    cluster <-->|"cache (TTL 5m)"| VK
+    cluster -->|"snapshot every 5m + /store"| MIO
     PROM[Prometheus] -->|scrapes /metrics| ING
     GHCR -.->|image pull| cluster
 ```
