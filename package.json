@@ -20,7 +20,8 @@
   "homepage": "https://github.com/Hydra2113/devops-hands-on-project-hivebox#readme",
   "dependencies": {
     "express": "^5.2.1",
-    "prom-client": "^15.1.3"
+    "prom-client": "^15.1.3",
+    "redis": "^6.1.0"
   },
   "type": "module",
   "devDependencies": {
