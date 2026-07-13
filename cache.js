@@ -2,7 +2,16 @@ import { createClient } from 'redis';
 
 // Fail-open cache: every helper swallows connection errors and returns a
 // miss instead. A dead Valkey must degrade to "slower", never to an outage.
-const client = createClient({ url: process.env.VALKEY_URL ?? 'redis://localhost:6379' });
+const client = createClient({
+    url: process.env.VALKEY_URL ?? 'redis://localhost:6379',
+    // The cache is optional: fail fast instead of patiently retrying a dead
+    // server (default settings cost ~10s per request while Valkey is down).
+    disableOfflineQueue: true,
+    socket: {
+        connectTimeout: 2000,
+        reconnectStrategy: retries => (retries >= 2 ? false : 200),
+    },
+});
 client.on('error', () => {}); // errors surface as failed commands below; don't crash the process
 
 async function connected() {
@@ -15,6 +24,14 @@ export async function cacheGet(key) {
         return await (await connected()).get(key);
     } catch {
         return null;
+    }
+}
+
+export async function cacheDel(key) {
+    try {
+        await (await connected()).del(key);
+    } catch {
+        // best-effort, same as set
     }
 }
 
