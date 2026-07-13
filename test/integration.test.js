@@ -1,7 +1,20 @@
 import { test, before, beforeEach, after } from 'node:test';
 import assert from 'node:assert/strict';
+import { S3Client, GetObjectCommand } from '@aws-sdk/client-s3';
 import app from '../OpenSenseAPI.js';
 import { cacheDel, cacheClose } from '../cache.js';
+import { storageClose } from '../storage.js';
+
+// Independent S3 reader (not the app's client) to verify /store writes.
+const s3 = new S3Client({
+    endpoint: process.env.S3_ENDPOINT ?? 'http://localhost:9000',
+    region: 'us-east-1',
+    credentials: {
+        accessKeyId: process.env.S3_ACCESS_KEY ?? 'minioadmin',
+        secretAccessKey: process.env.S3_SECRET_KEY ?? 'minioadmin',
+    },
+    forcePathStyle: true,
+});
 
 // Integration boundary: the real app, real HTTP, real routing, and a real
 // Valkey (from docker-compose) — only the upstream openSenseMap API is faked.
@@ -28,7 +41,9 @@ beforeEach(() => cacheDel('temperature'));
 
 after(async () => {
     globalThis.fetch = realFetch;
-    await cacheClose(); // an open Valkey connection would hang the test runner
+    await cacheClose(); // open connections would hang the test runner
+    storageClose();
+    s3.destroy();
     await new Promise(resolve => server.close(resolve));
 });
 
@@ -102,4 +117,32 @@ test('custom metrics record the outcomes of earlier requests', async () => {
     assert.match(body, /hivebox_temperature_celsius 20/);    // set by the ok test
     assert.match(body, /hivebox_opensensemap_request_duration_seconds_count/);
     assert.match(body, /hivebox_http_request_duration_seconds_count\{route="\/temperature"/);
+});
+
+// After the metrics test so the exact-count assertions above stay valid.
+test('GET /store writes a snapshot to MinIO', async () => {
+    upstream.handler = respondWith(boxWithReading(20, new Date().toISOString()));
+    const res = await fetch(`${base}/store`);
+    assert.equal(res.status, 200);
+
+    const { stored } = await res.json();
+    assert.match(stored, /^temperature\/.+\.json$/);
+
+    // Read the object back with our own client — proves it landed in MinIO,
+    // not just that the endpoint claimed success.
+    const obj = await s3.send(new GetObjectCommand({
+        Bucket: process.env.S3_BUCKET ?? 'hivebox',
+        Key: stored,
+    }));
+    const snapshot = JSON.parse(await obj.Body.transformToString());
+    assert.equal(snapshot.temperature, 20);
+    assert.equal(snapshot.status, 'Good');
+    assert.ok(snapshot.storedAt);
+});
+
+test('GET /store returns 404 when upstream data is stale', async () => {
+    const twoHoursAgo = new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString();
+    upstream.handler = respondWith(boxWithReading(20, twoHoursAgo));
+    const res = await fetch(`${base}/store`);
+    assert.equal(res.status, 404);
 });

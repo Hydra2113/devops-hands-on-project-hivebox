@@ -23,6 +23,12 @@ function ensureBucket() {
     return bucketReady;
 }
 
+// Tests import the app, which imports this module; the SDK's keep-alive
+// sockets would hold the event loop open, so tests close it explicitly.
+export function storageClose() {
+    s3.destroy();
+}
+
 // Write one JSON snapshot; returns the object key it was stored under.
 export async function putSnapshot(data) {
     await ensureBucket();
