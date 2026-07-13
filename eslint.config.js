@@ -4,7 +4,7 @@ export default [
     js.configs.recommended,
     {
         languageOptions: {
-            globals: { process: 'readonly', console: 'readonly', fetch: 'readonly' },
+            globals: { process: 'readonly', console: 'readonly', fetch: 'readonly', setInterval: 'readonly' },
         },
     },
 ];

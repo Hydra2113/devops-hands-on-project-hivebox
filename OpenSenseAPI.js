@@ -2,6 +2,8 @@ import express from 'express';
 import { fileURLToPath } from 'node:url';
 import client from 'prom-client';
 import { averageRecentTemperature, recentTemperatures, temperatureStatus } from './temperature.js';
+import { cacheGet, cacheSet } from './cache.js';
+import { putSnapshot } from './storage.js';
 
 const app = express();
 client.collectDefaultMetrics(); // CPU, memory, event-loop lag, etc.
@@ -32,6 +34,11 @@ const httpDuration = new client.Histogram({
     name: 'hivebox_http_request_duration_seconds',
     help: 'HTTP request duration by route and status code',
     labelNames: ['route', 'status'],
+});
+const cacheRequests = new client.Counter({
+    name: 'hivebox_cache_requests_total',
+    help: 'Cache lookups for /temperature by result (fail-open errors count as misses)',
+    labelNames: ['result'],
 });
 
 // Time every request; labels resolved when the response finishes.
@@ -64,8 +71,19 @@ app.get('/version', (req, res) => {
 });
 
 
+const CACHE_KEY = 'temperature';
+const CACHE_TTL_SECONDS = 300; // senseBoxes report every few minutes; well within the 1h freshness rule
+
 app.get('/temperature', async (req, res) => {
     try {
+        const cached = await cacheGet(CACHE_KEY);
+        if (cached) {
+            cacheRequests.inc({ result: 'hit' });
+            temperatureRequests.inc({ outcome: 'ok' });
+            return res.json(JSON.parse(cached));
+        }
+        cacheRequests.inc({ result: 'miss' });
+
         const average = await getAverageTemperature();
         if (average === null) {
             temperatureRequests.inc({ outcome: 'no_fresh_data' });
@@ -73,10 +91,35 @@ app.get('/temperature', async (req, res) => {
         }
         temperatureRequests.inc({ outcome: 'ok' });
         temperatureCelsius.set(average);
-        res.json({ temperature: average, unit: 'C', status: temperatureStatus(average) });
+        const body = { temperature: average, unit: 'C', status: temperatureStatus(average) };
+        await cacheSet(CACHE_KEY, CACHE_TTL_SECONDS, JSON.stringify(body));
+        res.json(body);
     } catch {
         temperatureRequests.inc({ outcome: 'upstream_error' });
         res.status(502).json({ error: 'upstream unreachable' });
+    }
+});
+
+// Compute the current temperature and write it to MinIO as one snapshot.
+// Shared by the 5-minute timer and the /store endpoint.
+async function storeSnapshot() {
+    const average = await getAverageTemperature();
+    if (average === null) return null;
+    return putSnapshot({
+        temperature: average,
+        unit: 'C',
+        status: temperatureStatus(average),
+        storedAt: new Date().toISOString(),
+    });
+}
+
+app.get('/store', async (req, res) => {
+    try {
+        const key = await storeSnapshot();
+        if (key === null) return res.status(404).json({ error: 'no recent temperature data' });
+        res.json({ stored: key });
+    } catch {
+        res.status(502).json({ error: 'store failed' });
     }
 });
 
@@ -88,6 +131,9 @@ app.get('/metrics', async (req, res) => {
 // Only start the server when run directly (`node OpenSenseAPI.js`), not when
 // imported by a test — the test boots its own instance on a random port.
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
+    // ponytail: every replica runs its own timer, so 2+ pods write duplicate
+    // snapshots; move to a k8s CronJob (or leader election) when that matters.
+    setInterval(() => storeSnapshot().catch(e => console.error('periodic store failed:', e.message)), 5 * 60 * 1000);
     app.listen(PORT, () => {
         console.log(`server is successfully running on http://localhost:${PORT}`);
     });
