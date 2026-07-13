@@ -71,8 +71,15 @@ flowchart TB
         SVC --> P2[Pod hivebox]
     end
 
+    subgraph compose["Local services (docker compose)"]
+        VK[("Valkey cache")]
+        MIO[("MinIO object store")]
+    end
+
     U[Browser / curl] -->|http://localhost| ING
     P1 & P2 -->|fetch sensor data| OSM[("openSenseMap API")]
+    P1 & P2 <-->|"cache (TTL 5m)"| VK
+    P1 & P2 -->|"snapshot every 5m + /store"| MIO
     PROM[Prometheus] -->|scrapes /metrics| ING
     GHCR -.->|image pull| cluster
 ```
@@ -86,6 +93,7 @@ Express (Node 22, ES modules) app in [`OpenSenseAPI.js`](OpenSenseAPI.js), with 
 | `GET /version` | Returns the deployed app version |
 | `GET /temperature` | Average of three senseBoxes' current temperature (readings older than 1 hour are discarded) plus a `status` band: `<10` Too Cold, `10–36` Good, `>36` Too Hot. `404` if no fresh data, `502` if openSenseMap is unreachable |
 | `GET /metrics` | Prometheus metrics (see Phase 5) |
+| `GET /store` | Writes the current temperature snapshot to MinIO immediately (see Phase 9) |
 
 ### Phase 2 — Testing
 
@@ -111,6 +119,8 @@ All third-party actions are pinned to full commit SHAs (supply-chain hardening).
 ### Phase 5 — Observability
 
 `prom-client` exposes default Node process metrics at `/metrics` in Prometheus exposition format. [`prometheus.yml`](prometheus.yml) contains the scrape config (15s interval); run Prometheus in Docker with the config mounted, and it reaches the app on the host via `host.docker.internal:3000`.
+
+Custom metrics based on the app's logic: `/temperature` outcomes counter (ok / no fresh data / upstream error), openSenseMap fetch-latency histogram, fresh-readings gauge, last-average gauge, per-route HTTP duration histogram, and cache hit/miss counter (Phase 9).
 
 ### Phase 6 — Kubernetes on KIND
 
@@ -142,3 +152,14 @@ Driven by the Semgrep/Terrascan/SonarLint findings, verified by re-running the s
 ### Phase 8 — Continuous Delivery
 
 [`cd.yml`](.github/workflows/cd.yml) runs on every push to `main` (i.e. every merge): builds the image and pushes it to GitHub Container Registry as `ghcr.io/hydra2113/devops-hands-on-project-hivebox`, tagged both `main-<shortsha>` (immutable, for traceability and rollback) and `latest`. Authentication uses the workflow's built-in `GITHUB_TOKEN` with least-privilege `packages: write` permission — no manually managed secrets.
+
+### Phase 9 — Caching and storage
+
+Two stateful services, run locally (and in CI) via [`docker-compose.yml`](docker-compose.yml):
+
+- **Valkey cache** ([`cache.js`](cache.js)) — `/temperature` responses are cached for 5 minutes (measured: ~1300ms miss → ~60ms hit). **Fail-open by design**: any cache error is treated as a miss and the app recomputes from openSenseMap, so a dead Valkey degrades to slower responses, never an outage. The client fails fast (2s connect cap, 2 retries, no offline queue) and reconnects on its own when Valkey returns.
+- **MinIO object store** ([`storage.js`](storage.js)) — a JSON temperature snapshot is written to the auto-created `hivebox` bucket every 5 minutes, and immediately on `GET /store` (keys like `temperature/2026-07-13T03-16-33Z.json`). **Not fail-open**: a failed write is data loss, so errors surface (502 on `/store`).
+- Configuration is entirely env vars (`VALKEY_URL`, `S3_ENDPOINT`, `S3_ACCESS_KEY`, `S3_SECRET_KEY`, `S3_BUCKET`) with localhost defaults, so `docker compose up -d` + `npm start` works with zero setup.
+- Integration tests run against the real Valkey and MinIO (CI boots the same compose file and health-gates before testing); only openSenseMap stays faked.
+
+Known limitation (deliberate): each replica runs its own 5-minute timer, so multiple pods write duplicate snapshots — the upgrade path is a Kubernetes CronJob.
