@@ -29,7 +29,16 @@ jobs:
         with:
           dockerfile: Dockerfile
 
-      - name: run unit tests
+      # The integration tests need a live Valkey and MinIO; reuse the same
+      # docker-compose.yml developers run locally, then wait until both
+      # actually answer before testing against them.
+      - name: start Valkey and MinIO
+        run: |
+          docker compose up -d
+          timeout 30 sh -c 'until curl -sf http://localhost:9000/minio/health/live > /dev/null; do sleep 1; done'
+          timeout 30 sh -c 'until [ "$(docker compose exec -T valkey valkey-cli PING)" = "PONG" ]; do sleep 1; done'
+
+      - name: run unit and integration tests
         run: npm test
 
   semgrep:
