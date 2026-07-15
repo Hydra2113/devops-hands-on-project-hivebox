@@ -12,7 +12,9 @@ spec:
       labels:
         app: hivebox
       annotations:
-        container.apparmor.security.beta.kubernetes.io/hivebox: runtime/default
+        # No AppArmor annotation: Docker Desktop's kernel has no AppArmor, and
+        # kubelet rejects pods requesting profiles it cannot enforce
+        # (AC_K8S_0073 skipped in CI). Re-add on AppArmor-capable nodes.
         seccomp.security.alpha.kubernetes.io/pod: runtime/default
     spec:
       # HiveBox never calls the Kubernetes API, so don't mount a token a
@@ -41,10 +43,17 @@ spec:
               type: RuntimeDefault
             capabilities:
               drop: ["ALL"]
+          # Readiness gates traffic on actual serving ability (upstream or
+          # cache); liveness stays on /version — restarting a pod cannot fix
+          # openSenseMap being down, so upstream health must not restart us.
           readinessProbe:
             httpGet:
-              path: /version
+              path: /readyz
               port: 3000
+            # /readyz fetches upstream with 2s timeouts when its 30s memo is
+            # cold; the kubelet default probe timeout of 1s would flag those
+            # probes as failures.
+            timeoutSeconds: 5
           livenessProbe:
             httpGet:
               path: /version

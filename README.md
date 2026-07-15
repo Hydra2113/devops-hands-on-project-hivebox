@@ -94,6 +94,7 @@ Express (Node 22, ES modules) app in [`OpenSenseAPI.js`](OpenSenseAPI.js), with 
 | `GET /temperature` | Average of three senseBoxes' current temperature (readings older than 1 hour are discarded) plus a `status` band: `<10` Too Cold, `10–36` Good, `>36` Too Hot. `404` if no fresh data, `502` if openSenseMap is unreachable |
 | `GET /metrics` | Prometheus metrics (see Phase 5) |
 | `GET /store` | Writes the current temperature snapshot to MinIO immediately (see Phase 9) |
+| `GET /readyz` | Readiness probe: `200` unless a majority (50% + 1) of the senseBoxes are unreachable AND no cached temperature exists (cache entries expire at 5 minutes); otherwise `503` |
 
 ### Phase 2 — Testing
 
