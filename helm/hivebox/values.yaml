@@ -24,8 +24,8 @@ ingress:
 # inside a local single-node cluster only. Real deployments should use
 # rediss:// and https:// (or mesh mTLS) — see docs/kubernetes-security-review.md.
 env:
-  valkeyUrl: redis://valkey:6379
-  s3Endpoint: http://minio:9000
+  valkeyUrl: redis://valkey:6379 # NOSONAR — local-only clear-text, reviewed: security review gap 7
+  s3Endpoint: http://minio:9000 # NOSONAR — local-only clear-text, reviewed: security review gap 7
   s3Bucket: hivebox
   # Secret holding access-key / secret-key; created by the kustomize overlay.
   s3CredentialsSecret: minio-credentials
