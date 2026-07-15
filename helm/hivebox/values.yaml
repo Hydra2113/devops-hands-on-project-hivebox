@@ -18,6 +18,9 @@ ingress:
   className: nginx
 
 # Connection settings for the in-cluster infrastructure (see kustomize/).
+# Clear-text protocols (redis://, http://): acceptable for pod-to-pod traffic
+# inside a local single-node cluster only. Real deployments should use
+# rediss:// and https:// (or mesh mTLS) — see docs/kubernetes-security-review.md.
 env:
   valkeyUrl: redis://valkey:6379
   s3Endpoint: http://minio:9000

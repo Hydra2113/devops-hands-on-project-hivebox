@@ -51,6 +51,11 @@ phase.
    signing with cosign) closes the gap.
 6. **RBAC review** — default service accounts are unused (automount off) but
    no explicit RBAC has been authored; becomes relevant with GitOps.
+7. **In-transit encryption** — app↔Valkey (`redis://`) and app↔MinIO
+   (`http://`) traffic is clear-text (SonarLint S5332). Acceptable on a
+   single-node local cluster where pod-to-pod traffic never leaves the
+   machine; real deployments need `rediss://`/`https://` endpoints or a
+   service mesh providing transparent mTLS.
 
 ## Threat-model summary
 
