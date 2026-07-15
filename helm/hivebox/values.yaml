@@ -5,7 +5,9 @@ replicaCount: 2
 
 image:
   repository: hivebox
-  tag: latest
+  # Empty tag defaults to the chart's appVersion — a specific version,
+  # never "latest", so what runs is always identifiable.
+  tag: ""
   # Never: image is side-loaded with `kind load docker-image`.
   # Use IfNotPresent when pulling from a registry.
   pullPolicy: Never

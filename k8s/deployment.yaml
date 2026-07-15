@@ -28,7 +28,7 @@ spec:
         # Image is side-loaded locally via `kind load`, so it has no registry
         # digest and a fixed :latest tag by design (see skip_rules in CI).
         - name: hivebox
-          image: hivebox:latest
+          image: hivebox:v0.0.1
           # Never pull: the image is side-loaded with `kind load docker-image`,
           # it does not exist in any registry.
           imagePullPolicy: Never

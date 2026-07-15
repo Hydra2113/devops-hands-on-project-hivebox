@@ -134,8 +134,8 @@ Bring-up:
 
 ```bash
 kind create cluster --config kind-config.yaml
-docker build -t hivebox:latest .
-kind load docker-image hivebox:latest
+docker build -t hivebox:v0.0.1 .
+kind load docker-image hivebox:v0.0.1
 kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/main/deploy/static/provider/kind/deploy.yaml
 kubectl wait --namespace ingress-nginx --for=condition=ready pod --selector=app.kubernetes.io/component=controller --timeout=180s
 kubectl apply -f k8s/
