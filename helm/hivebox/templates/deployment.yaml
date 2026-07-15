@@ -36,7 +36,7 @@ spec:
             - name: S3_ENDPOINT
               value: {{ .Values.env.s3Endpoint | quote }} # NOSONAR — local-only clear-text, reviewed: security review gap 7
             - name: S3_BUCKET
-              value: {{ .Values.env.s3Bucket | quote }}
+              value: {{ .Values.env.s3Bucket | quote }} # NOSONAR — local-only clear-text, reviewed: security review gap 7
             - name: S3_ACCESS_KEY
               valueFrom:
                 secretKeyRef:
