@@ -1,0 +1,35 @@
+# Default values target the local KIND setup; override per environment
+# (e.g. --set image.repository=ghcr.io/hydra2113/devops-hands-on-project-hivebox).
+
+replicaCount: 2
+
+image:
+  repository: hivebox
+  tag: latest
+  # Never: image is side-loaded with `kind load docker-image`.
+  # Use IfNotPresent when pulling from a registry.
+  pullPolicy: Never
+
+service:
+  port: 3000
+
+ingress:
+  enabled: true
+  className: nginx
+
+# Connection settings for the in-cluster infrastructure (see kustomize/).
+env:
+  valkeyUrl: redis://valkey:6379
+  s3Endpoint: http://minio:9000
+  s3Bucket: hivebox
+  # Secret holding access-key / secret-key; created by the kustomize overlay.
+  s3CredentialsSecret: minio-credentials
+
+resources:
+  requests:
+    cpu: 50m
+    memory: 64Mi
+    ephemeral-storage: 128Mi
+  limits:
+    cpu: 250m
+    memory: 128Mi

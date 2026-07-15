@@ -1,0 +1,7 @@
+apiVersion: v2
+name: hivebox
+description: HiveBox — senseBox temperature API with caching and snapshot storage
+type: application
+# Chart version: bump on any chart change. appVersion: the app it deploys.
+version: 0.1.0
+appVersion: "v0.0.1"

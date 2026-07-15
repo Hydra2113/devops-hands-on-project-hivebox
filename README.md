@@ -164,3 +164,19 @@ Two stateful services, run locally (and in CI) via [`docker-compose.yml`](docker
 - Integration tests run against the real Valkey and MinIO (CI boots the same compose file and health-gates before testing); only openSenseMap stays faked.
 
 Known limitation (deliberate): each replica runs its own 5-minute timer, so multiple pods write duplicate snapshots — the upgrade path is a Kubernetes CronJob.
+
+### Phase 10 — Packaging: Helm, Kustomize, and a security review
+
+The full stack now runs in-cluster, packaged with the two standard tools:
+
+- **[`helm/hivebox`](helm/hivebox)** — Helm chart for the application: the hardened Deployment/Service/Ingress templated behind [`values.yaml`](helm/hivebox/values.yaml) (image, replicas, resources, ingress toggle, and the Valkey/MinIO connection env). One artifact, any environment.
+- **[`kustomize/`](kustomize)** — Kustomize manifests for the infrastructure: a hardened base (Valkey Deployment — disposable cache; MinIO StatefulSet + PersistentVolumeClaim — durable snapshots) and a `local` overlay that generates dev credentials and shrinks the volume claim.
+- **CI scans what actually ships**: the Terrascan job renders the chart and the overlay (`helm template`, `kubectl kustomize`) and scans the output, not just the source YAML.
+- **[`docs/kubernetes-security-review.md`](docs/kubernetes-security-review.md)** — posture review against Kubernetes hardening guidance: what is implemented, the documented trade-offs, and the prioritised gaps (secrets management, NetworkPolicies, namespaces, Pod Security Admission).
+
+Bring-up on KIND (replaces the Phase 6 per-file commands):
+
+```bash
+kubectl apply -k kustomize/overlays/local
+helm install hivebox helm/hivebox
+```
