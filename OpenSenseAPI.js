@@ -123,6 +123,41 @@ app.get('/store', async (req, res) => {
     }
 });
 
+// Readiness: this pod can serve /temperature if a majority of boxes answer,
+// or a fresh cached response exists (cache entries expire at exactly 5
+// minutes, so "cached" implies "newer than 5 minutes").
+const READY_MAJORITY = Math.floor(BOX_IDS.length / 2) + 1; // "50% + 1"
+
+// Memoised so kubelet probes (every ~10s per pod) don't hammer openSenseMap.
+// The interval is env-tunable mainly so tests can set it to 0.
+let lastBoxCheck = { at: 0, down: 0 };
+async function countBoxesDown() {
+    const memoMs = Number(process.env.READY_CHECK_TTL_MS ?? 30_000);
+    if (Date.now() - lastBoxCheck.at < memoMs) return lastBoxCheck.down;
+
+    const reachable = await Promise.all(
+        BOX_IDS.map(async id => {
+            try {
+                const r = await fetch(`https://api.opensensemap.org/boxes/${id}`, {
+                    signal: AbortSignal.timeout(2000), // probes must answer fast
+                });
+                return r.ok;
+            } catch {
+                return false;
+            }
+        })
+    );
+    lastBoxCheck = { at: Date.now(), down: reachable.filter(ok => !ok).length };
+    return lastBoxCheck.down;
+}
+
+app.get('/readyz', async (req, res) => {
+    const boxesDown = await countBoxesDown();
+    const cacheFresh = (await cacheGet(CACHE_KEY)) !== null;
+    const ready = boxesDown < READY_MAJORITY || cacheFresh;
+    res.status(ready ? 200 : 503).json({ ready, boxesDown, cacheFresh });
+});
+
 app.get('/metrics', async (req, res) => {
     res.set('Content-Type', client.register.contentType);
     res.send(await client.register.metrics());

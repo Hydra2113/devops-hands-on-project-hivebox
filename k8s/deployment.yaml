@@ -41,9 +41,12 @@ spec:
               type: RuntimeDefault
             capabilities:
               drop: ["ALL"]
+          # Readiness gates traffic on actual serving ability (upstream or
+          # cache); liveness stays on /version — restarting a pod cannot fix
+          # openSenseMap being down, so upstream health must not restart us.
           readinessProbe:
             httpGet:
-              path: /version
+              path: /readyz
               port: 3000
           livenessProbe:
             httpGet:

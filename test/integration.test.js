@@ -24,6 +24,10 @@ let server, base;
 const realFetch = globalThis.fetch;
 const upstream = { handler: null };
 
+// /readyz memoises its upstream check for 30s in production; disable the
+// memo here so every test gets a fresh verdict. (Read lazily by the app.)
+process.env.READY_CHECK_TTL_MS = '0';
+
 before(() => new Promise(resolve => {
     globalThis.fetch = (url, opts) =>
         String(url).includes('api.opensensemap.org')
@@ -145,4 +149,49 @@ test('GET /store returns 404 when upstream data is stale', async () => {
     upstream.handler = respondWith(boxWithReading(20, twoHoursAgo));
     const res = await fetch(`${base}/store`);
     assert.equal(res.status, 404);
+});
+
+// --- /readyz: ready unless a majority of boxes are down AND the cache is cold ---
+
+// Handlers for the readiness check need an `ok` field (a real fetch Response
+// property) — the /temperature handlers never read it.
+const boxUp = async () => ({ ok: true, json: async () => boxWithReading(20, new Date().toISOString()) });
+const boxDown = async () => { throw new Error('unreachable'); };
+const ONE_BOX = '5eba5fbad46fb8001b799786'; // first configured senseBox id
+
+test('GET /readyz is 200 when all boxes are reachable (cache cold)', async () => {
+    upstream.handler = boxUp;
+    const res = await fetch(`${base}/readyz`);
+    assert.equal(res.status, 200);
+    assert.deepEqual(await res.json(), { ready: true, boxesDown: 0, cacheFresh: false });
+});
+
+test('GET /readyz is 200 when only a minority of boxes are down', async () => {
+    upstream.handler = url => String(url).includes(ONE_BOX) ? boxDown() : boxUp();
+    const res = await fetch(`${base}/readyz`);
+    assert.equal(res.status, 200);
+    assert.deepEqual(await res.json(), { ready: true, boxesDown: 1, cacheFresh: false });
+});
+
+test('GET /readyz is 200 when a majority is down but the cache is fresh', async () => {
+    upstream.handler = boxUp;
+    await fetch(`${base}/temperature`); // populate the cache
+    upstream.handler = boxDown;
+    const res = await fetch(`${base}/readyz`);
+    assert.equal(res.status, 200);
+    assert.deepEqual(await res.json(), { ready: true, boxesDown: 3, cacheFresh: true });
+});
+
+test('GET /readyz is 503 when a majority is down and the cache is cold', async () => {
+    upstream.handler = url => String(url).includes(ONE_BOX) ? boxUp() : boxDown();
+    const res = await fetch(`${base}/readyz`);
+    assert.equal(res.status, 503);
+    assert.deepEqual(await res.json(), { ready: false, boxesDown: 2, cacheFresh: false });
+});
+
+test('GET /readyz is 503 when every box is down and the cache is cold', async () => {
+    upstream.handler = boxDown;
+    const res = await fetch(`${base}/readyz`);
+    assert.equal(res.status, 503);
+    assert.deepEqual(await res.json(), { ready: false, boxesDown: 3, cacheFresh: false });
 });
