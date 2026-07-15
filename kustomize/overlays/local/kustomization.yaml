@@ -1,0 +1,26 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - ../../base
+
+# Local dev credentials only — a real environment would source these from a
+# secret manager (External Secrets / Sealed Secrets), never from the repo.
+secretGenerator:
+  - name: minio-credentials
+    literals:
+      - access-key=minioadmin
+      - secret-key=minioadmin
+    options:
+      # Keep the name stable: the helm chart references it by name.
+      disableNameSuffixHash: true
+
+# Local cluster: shrink MinIO's volume claim from the base's 5Gi.
+patches:
+  - target:
+      kind: StatefulSet
+      name: minio
+    patch: |-
+      - op: replace
+        path: /spec/volumeClaimTemplates/0/spec/resources/requests/storage
+        value: 1Gi

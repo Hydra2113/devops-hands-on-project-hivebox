@@ -1,0 +1,72 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Chart.Name }}
+  labels:
+    {{- include "hivebox.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "hivebox.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "hivebox.labels" . | nindent 8 }}
+      annotations:
+        # No AppArmor annotation: local KIND nodes have no AppArmor in the
+        # kernel and kubelet rejects pods requesting unenforceable profiles.
+        seccomp.security.alpha.kubernetes.io/pod: runtime/default
+    spec:
+      # HiveBox never calls the Kubernetes API; don't mount a credential.
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: {{ .Chart.Name }}
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - containerPort: 3000
+          env:
+            - name: VALKEY_URL
+              value: {{ .Values.env.valkeyUrl | quote }} # NOSONAR — local-only clear-text, reviewed: security review gap 7
+            - name: S3_ENDPOINT
+              value: {{ .Values.env.s3Endpoint | quote }} # NOSONAR — local-only clear-text, reviewed: security review gap 7
+            - name: S3_BUCKET
+              value: {{ .Values.env.s3Bucket | quote }} # NOSONAR — local-only clear-text, reviewed: security review gap 7
+            - name: S3_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.env.s3CredentialsSecret }}
+                  key: access-key
+            - name: S3_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.env.s3CredentialsSecret }}
+                  key: secret-key
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            seccompProfile:
+              type: RuntimeDefault
+            capabilities:
+              drop: ["ALL"]
+          # Readiness gates traffic on serving ability (upstream or cache);
+          # liveness stays on /version — restarts can't fix upstream outages.
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: 3000
+            # /readyz fetches upstream with 2s timeouts on a cold memo.
+            timeoutSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /version
+              port: 3000
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}

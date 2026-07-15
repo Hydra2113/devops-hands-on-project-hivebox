@@ -8,8 +8,9 @@ WORKDIR /devops-hands-on-project-hivebox
 COPY package*.json ./
 RUN npm install --production
 
-# Once dependencies are safely cached, copy all other project files
-COPY . .
+# Copy only the files the app needs at runtime (allowlist, not COPY . .):
+# nothing sensitive or extraneous can end up inside the image.
+COPY OpenSenseAPI.js temperature.js cache.js storage.js ./
 
 # Document the port which your application listens to at runtime
 EXPOSE 3000
