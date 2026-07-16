@@ -67,20 +67,18 @@ flowchart TB
     subgraph cluster["Local KIND cluster (Docker container as node)"]
         direction TB
         ING[ingress-nginx controller] --> SVC[Service hivebox :3000]
-        SVC --> P1[Pod hivebox]
-        SVC --> P2[Pod hivebox]
+        SVC --> APP["hivebox pods ×2 (helm)"]
+        APP <-->|"cache (TTL 5m)"| VK[("Valkey")]
+        APP -->|"snapshot every 5m + /store"| MIO[("MinIO + PVC")]
     end
 
-    subgraph compose["Local services (docker compose)"]
-        VK[("Valkey cache")]
-        MIO[("MinIO object store")]
+    subgraph obs["Local observability"]
+        GRAF[Grafana, native service :3000] -->|queries| PROM[Prometheus container :9090]
     end
 
     U[Browser / curl] -->|http://localhost| ING
-    cluster -->|fetch sensor data| OSM[("openSenseMap API")]
-    cluster <-->|"cache (TTL 5m)"| VK
-    cluster -->|"snapshot every 5m + /store"| MIO
-    PROM[Prometheus] -->|scrapes /metrics| ING
+    APP -->|fetch sensor data| OSM[("openSenseMap API")]
+    PROM -->|"scrapes /metrics via ingress :80"| ING
     GHCR -.->|image pull| cluster
 ```
 
@@ -119,7 +117,7 @@ All third-party actions are pinned to full commit SHAs (supply-chain hardening).
 
 ### Phase 5 — Observability
 
-`prom-client` exposes default Node process metrics at `/metrics` in Prometheus exposition format. [`prometheus.yml`](prometheus.yml) contains the scrape config (15s interval); run Prometheus in Docker with the config mounted, and it reaches the app on the host via `host.docker.internal:3000`.
+`prom-client` exposes default Node process metrics at `/metrics` in Prometheus exposition format. [`prometheus.yml`](prometheus.yml) contains the scrape config (15s interval); run Prometheus in Docker with the config mounted. It scrapes the cluster-deployed app through the ingress (`host.docker.internal:80` — use `localhost:3000` instead to scrape a host-run `npm start`).
 
 Custom metrics based on the app's logic: `/temperature` outcomes counter (ok / no fresh data / upstream error), openSenseMap fetch-latency histogram, fresh-readings gauge, last-average gauge, per-route HTTP duration histogram, and cache hit/miss counter (Phase 9).
 
@@ -180,3 +178,15 @@ Bring-up on KIND (replaces the Phase 6 per-file commands):
 kubectl apply -k kustomize/overlays/local
 helm install hivebox helm/hivebox
 ```
+
+### Phase 11 — Dashboards: Grafana over Prometheus
+
+Local observability chain, host-side, watching the cluster:
+
+- **Prometheus** runs as a Docker container (`:9090`) scraping the in-cluster app's `/metrics` through the ingress port mapping (`host.docker.internal:80`).
+- **Grafana** runs as a native Windows service (`:3000`) with Prometheus added as a data source (`http://localhost:9090`, no auth — local only).
+- Dashboard panels over the custom metrics: per-route HTTP request duration, openSenseMap fetch latency (gauge + histogram), request outcomes, cache hit rate.
+
+![Grafana dashboard visualising HiveBox metrics](docs/images/grafana-dashboard.png)
+
+Known limitation: Prometheus scrapes through the ingress, which load-balances across both replicas — per-pod counters interleave in one series and can look jagged. The fix is in-cluster, per-pod collection (Grafana Alloy), which is the next observability step alongside shipping logs to Grafana Cloud Loki.

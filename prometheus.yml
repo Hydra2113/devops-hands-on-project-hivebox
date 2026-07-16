@@ -8,4 +8,4 @@ scrape_configs:
       # host.docker.internal = the host machine, as seen from inside the
       # Prometheus container. Use 'localhost:3000' instead if you run the
       # prometheus binary natively on the host.
-      - targets: ['host.docker.internal:3000']
+      - targets: ['host.docker.internal:80']
