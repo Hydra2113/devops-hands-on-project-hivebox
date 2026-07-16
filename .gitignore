@@ -1,2 +1,8 @@
 node_modules
 rendered/
+
+# Terraform: state holds credentials; .terraform holds provider binaries
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfplan

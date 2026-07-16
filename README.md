@@ -190,3 +190,23 @@ Local observability chain, host-side, watching the cluster:
 ![Grafana dashboard visualising HiveBox metrics](docs/images/grafana-dashboard.png)
 
 Known limitation: Prometheus scrapes through the ingress, which load-balances across both replicas — per-pod counters interleave in one series and can look jagged. The fix is in-cluster, per-pod collection (Grafana Alloy), which is the next observability step alongside shipping logs to Grafana Cloud Loki.
+
+### Phase 12 — Cloud Kubernetes with Terraform (Azure AKS)
+
+[`terraform/`](terraform) provisions a real cluster: resource group + AKS (free-tier control plane, one burstable `B2als_v2` node, managed identity), authenticated via the Azure CLI session. State is local and gitignored — it contains cluster credentials.
+
+```bash
+cd terraform
+terraform init && terraform apply
+az aks get-credentials --resource-group hivebox-rg --name hivebox-aks
+kubectl apply -f <ingress-nginx cloud manifest>
+kubectl apply -k kustomize/overlays/local
+helm install hivebox helm/hivebox \
+  --set image.repository=ghcr.io/hydra2113/devops-hands-on-project-hivebox \
+  --set image.tag=main-<sha> --set image.pullPolicy=IfNotPresent
+terraform destroy   # when done — the node bills hourly
+```
+
+The same kustomize overlay and helm chart deploy unchanged from KIND to AKS; only the image source flips from side-loaded to GHCR-pulled (versioned tag). Verified live: all endpoints answering on the Azure load balancer's public IP, with in-cluster cache (`/readyz` reporting `cacheFresh: true`) and snapshots on an Azure-provisioned PVC.
+
+Subscription quirks encountered and encoded in the config: student subscriptions refuse blanket resource-provider registration (`resource_provider_registrations = "none"` + explicit `az provider register`) and disallow v1 B-series VM sizes in some regions (hence `B2als_v2`).
